@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -8,6 +10,7 @@ from ..utils import maturity_level
 from ..services.questions import load_questions
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+log = logging.getLogger(__name__)
 
 NEXT_STEPS = {
     "support": ["Use AI to draft first replies, then edit", "Summarise long ticket threads before escalating", "Never paste customer details into public chatbots"],
@@ -46,3 +49,18 @@ def my_report(m: models.Membership = Depends(current_membership), db: Session = 
         "ai_assessments": ai_assessments,
         "next_steps": NEXT_STEPS.get(m.job_role, NEXT_STEPS["manager"]),
     }
+
+
+@router.delete("/me")
+def delete_my_data(m: models.Membership = Depends(current_membership), db: Session = Depends(get_db)):
+    """Right to delete: removes all of the caller's answers (and so their report) in the selected org.
+
+    Hard delete, not a soft-delete flag. Dashboards are computed live from these rows,
+    so the person disappears from every dashboard on the next request. Answers in the
+    user's other organizations are untouched; each org's data is deleted from inside that org.
+    """
+    deleted = db.query(models.Response).filter_by(membership_id=m.id).delete()
+    db.commit()
+    # Record that a deletion happened, never what was deleted
+    log.info("Data deletion: membership=%s org=%s rows=%s", m.id, m.org_id, deleted)
+    return {"deleted_answers": deleted}
