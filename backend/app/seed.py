@@ -1,7 +1,9 @@
 """Creates demo data. Run: python -m app.seed
 
 All passwords are: pulse123
+This DROPS ALL TABLES first, so it only runs when APP_ENV is dev or test.
 """
+from .config import IS_DEV, APP_ENV
 from .db import Base, engine, SessionLocal
 from . import models
 from .auth import hash_password
@@ -28,6 +30,8 @@ PEOPLE_BLUEPEAK = [
 
 
 def run():
+    if not IS_DEV:
+        raise SystemExit(f"Refusing to seed: APP_ENV={APP_ENV!r}. Seeding drops every table; set APP_ENV=dev.")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
