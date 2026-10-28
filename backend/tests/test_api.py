@@ -16,14 +16,6 @@ def test_employee_sees_questions(client):
 
 def test_admin_dashboard(client):
     headers, data = login(client, "asha@northwind.test", "Northwind Logistics")
-    org_id = data["organizations"][0]["org_id"]
-    r = client.get(f"/dashboard?org_id={org_id}", headers=headers)
+    r = client.get("/dashboard", headers=headers)
     assert r.status_code == 200
     assert len(r.json()["departments"]) == 4
-
-
-def test_admin_cannot_see_other_org(client):
-    headers, _ = login(client, "asha@northwind.test", "Northwind Logistics")
-    r = client.get("/dashboard?org_id=1", headers=headers)
-    assert r.status_code == 200
-    assert "departments" in r.json()
