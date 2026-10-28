@@ -52,4 +52,8 @@ class Response(Base):
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     flags: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Open answers only: "scored" or "needs_review" (model reply failed validation; score is None
+    # and the answer is left out of every average). None for multiple-choice answers.
+    ai_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    scored_by: Mapped[str | None] = mapped_column(String(80), nullable=True)  # model name, for audit
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

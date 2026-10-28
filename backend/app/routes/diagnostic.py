@@ -60,6 +60,8 @@ def submit(body: SubmitIn, m: models.Membership = Depends(current_membership), d
             resp.score = result["score"]
             resp.reason = result["reason"]
             resp.flags = result["flags"]
+            resp.ai_status = result["status"]
+            resp.scored_by = result["model"]
         new_rows.append(resp)
 
     # Retaking the diagnostic replaces the previous answers (one current result per person per org).
