@@ -1,7 +1,7 @@
 """Client request #2: an employee can delete all their answers and their report themselves,
 and it disappears from every dashboard immediately."""
 from app import models
-from app.db import SessionLocal
+from app.db import SessionLocal, engine
 from tests.conftest import login
 from tests.helpers import full_answers
 
@@ -76,6 +76,22 @@ def test_can_retake_after_deleting(client):
     r = client.post("/diagnostic/submit", json={"answers": full_answers("support", "junior")}, headers=h)
     assert r.status_code == 200
     assert client.get("/reports/me", headers=h).json()["answered"] == 6
+
+
+def test_deleted_text_is_not_left_in_the_database_file(client):
+    """SQLite normally only marks deleted rows as free space, so the text stays in the file
+    (and in any copy or backup of it) until the space is reused."""
+    marker = "ZZ-DELETE-ME-4471 I paste customer emails into a chatbot"
+    db = SessionLocal()
+    m = (db.query(models.Membership).join(models.User)
+         .filter(models.User.email == "vikram@northwind.test").one())
+    h, _ = login(client, "vikram@northwind.test", "Northwind Logistics")
+    answers = full_answers(m.job_role, m.seniority, open_text=marker)
+    assert client.post("/diagnostic/submit", json={"answers": answers}, headers=h).status_code == 200
+    client.delete("/reports/me", headers=h)
+
+    with open(engine.url.database, "rb") as f:
+        assert b"ZZ-DELETE-ME-4471" not in f.read()
 
 
 def test_deleting_twice_is_harmless(client):

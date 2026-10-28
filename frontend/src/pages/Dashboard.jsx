@@ -1,12 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api, RISK_LABELS } from "../api.js";
 
-const STATUS_TEXT = {
-  pooled: (n) => `fewer than ${n} responses, included in Other teams`,
-  hidden: (n) => `fewer than ${n} responses, not shown`,
-  no_responses: () => "no responses yet",
-};
-
 function Risks({ risks }) {
   if (!risks.length) return <span className="muted">none</span>;
   return risks.map((r) => <div key={r.risk} className="small">{RISK_LABELS[r.risk] || r.risk} ({r.people})</div>);
@@ -39,7 +33,7 @@ export default function Dashboard() {
         )}
         <p className="small muted">
           To protect anonymity, no group with fewer than {n} responses is shown on its own.
-          {data.some_responses_hidden && " Some responses from small teams are left out of every number on this page."}
+          {data.small_teams_left_out && " Teams below that size are left out of every number on this page."}
         </p>
       </div>
 
@@ -84,8 +78,12 @@ export default function Dashboard() {
       {data.not_shown.length > 0 && (
         <div className="card">
           <h3>Not shown separately</h3>
+          <p className="small muted">
+            Fewer than {n} responses each (possibly none).{" "}
+            {data.small_teams_left_out ? "Not included in any figure." : "Included in Other teams."}
+          </p>
           <ul>
-            {data.not_shown.map((d) => <li key={d.department}>{d.department}: {STATUS_TEXT[d.status](n)}</li>)}
+            {data.not_shown.map((d) => <li key={d.department}>{d.department}</li>)}
           </ul>
         </div>
       )}

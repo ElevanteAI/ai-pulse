@@ -125,10 +125,10 @@ I treated the model as an untrusted input, like a form field, rather than as a s
 - A department with **5+ respondents** is shown, with its own risks.
 - Smaller departments, plus respondents with no department, are **pooled into "Other teams"**, which lists which teams it covers.
 - If the pool is still under 5, those people are **excluded from every number on the page**: overall average, risks, AI health and policy check. A test asserts that the overall figure always equals the sum of the shown groups.
-- The page says *that* some answers are hidden, never *how many*. "1 hidden" next to a 2-person team would itself reveal who took part.
+- Teams that aren't shown on their own are listed **by name only**: no headcount, and no difference between "nobody answered" and "4 answered". Otherwise a 1-person team reveals who took part, and later who deleted (found in my second-pass review; `test_teams_not_shown_reveal_nothing_about_who_took_part`).
 - The threshold is configurable but can't go below 5.
 
-**2. Right to delete.** "Delete my data" on the employee's report calls `DELETE /reports/me`, which **hard-deletes** their answers for the selected organization. Dashboards are computed live from those rows, so the person is gone on the next page load. A test shows a deletion pushing Sales below 5 and the team disappearing. A consultant deleting at Northwind leaves their Bluepeak data untouched. Only the fact of the deletion is logged, never the content.
+**2. Right to delete.** "Delete my data" on the employee's report calls `DELETE /reports/me`, which **hard-deletes** their answers for the selected organization. Dashboards are computed live from those rows, so the person is gone on the next page load. A test shows a deletion pushing Sales below 5 and the team disappearing. A consultant deleting at Northwind leaves their Bluepeak data untouched. Only the fact of the deletion is logged, never the content. SQLite runs with `secure_delete` on, so the deleted text is overwritten in the database file rather than left in its free space (tested by searching the raw file). Backups and the LLM provider are outside what the code can prove; see question 3.
 
 ### What I'd ask Northwind
 
@@ -160,7 +160,7 @@ I used Claude Code (Claude Opus) throughout, as a pair: reading the codebase, wr
 
 **Where it got things wrong** (all caught before merge):
 
-- **It introduced a privacy leak while building the privacy feature.** The first version of the minimum-group-size dashboard returned `hidden_respondents: 1`. Next to "HR: 2 employees, hidden", that tells leadership exactly who took part. I changed it to a yes/no `some_responses_hidden`.
+- **It introduced a privacy leak while building the privacy feature.** The first version of the minimum-group-size dashboard returned `hidden_respondents: 1`. Next to "HR: 2 employees, hidden", that tells leadership exactly who took part. I changed it to a yes/no `some_responses_hidden`. That still wasn't enough: a second-pass review found the per-team "hidden" vs "no responses yet" status did the same job for a 1-person team, so teams not shown are now listed by name only.
 - **It told users something they never said.** The first policy-check draft showed "You said you follow the company's AI policy" to people who had only answered "Yes, I've read it". I split that into its own status (`risky`) with its own message.
 - **It marked work done before it was done, twice.** The first draft of the audit had every finding's status as "Fixed" before any fix existed, and one commit message claimed CI was verified when CI hadn't run (nothing was pushed). I set the audit to "Planned" and updated each status as fixes landed, and this README says plainly what is and isn't verified.
 - Smaller ones: an injection filter that would have flagged legitimate answers mentioning a "rubric", and a dense list comprehension in the dashboard that I had it rewrite into something I could explain in a code review.

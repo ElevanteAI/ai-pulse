@@ -42,8 +42,9 @@ def test_large_departments_shown_small_ones_pooled(client):
     assert names(data) == ["Sales", "Support", "Other teams"]
     other = data["groups"][-1]
     assert other["respondents"] == 5
-    assert other["includes"] == ["Engineering", "HR"]
-    assert {n["department"]: n["status"] for n in data["not_shown"]} == {"Engineering": "pooled", "HR": "pooled"}
+    assert other["includes"] == ["Engineering", "HR", "No department"]  # Asha (admin) has no department
+    assert data["not_shown"] == [{"department": "Engineering"}, {"department": "HR"}]
+    assert data["small_teams_left_out"] is False
     assert_no_small_group_visible(data)
 
 
@@ -51,8 +52,8 @@ def test_pool_still_too_small_is_hidden_everywhere(client):
     clear_answers("omar@northwind.test", "Northwind Logistics")  # Other teams drops to 4
     data = dashboard(client)
     assert names(data) == ["Sales", "Support"]
-    assert data["some_responses_hidden"] is True
-    assert {n["department"]: n["status"] for n in data["not_shown"]} == {"Engineering": "hidden", "HR": "hidden"}
+    assert data["small_teams_left_out"] is True
+    assert data["not_shown"] == [{"department": "Engineering"}, {"department": "HR"}]
     assert data["overall"]["respondents"] == 11  # Sales 5 + Support 6, not 15
     assert_no_small_group_visible(data)
 
@@ -70,13 +71,24 @@ def test_hidden_people_do_not_leak_through_risks(client):
     assert risks["unreviewed_output"] == 2
 
 
+def test_teams_not_shown_reveal_nothing_about_who_took_part(client):
+    """Kabir is the only person in Bluepeak's Customer Care. The page must look the same whether or
+    not he has answered, or leadership learns that he took part, and later that he deleted."""
+    before = dashboard(client, "meera@bluepeak.test", "Bluepeak Retail")
+    h, _ = login(client, "kabir@bluepeak.test", "Bluepeak Retail")
+    client.delete("/reports/me", headers=h)
+    after = dashboard(client, "meera@bluepeak.test", "Bluepeak Retail")
+    assert before == after
+    assert all(set(n) == {"department"} for n in after["not_shown"])  # no status, no headcount
+
+
 def test_tiny_org_shows_no_scores_at_all(client):
     data = dashboard(client, "meera@bluepeak.test", "Bluepeak Retail")
     assert data["groups"] == []
     assert data["overall"] is None
     assert data["top_risks"] == []  # Kabir's confidential_data_shared must not appear
     assert data["ai_scoring"] is None
-    assert data["some_responses_hidden"] is True
+    assert data["small_teams_left_out"] is True
     assert "customer" not in str(data) and "confidential" not in str(data)
 
 
@@ -97,7 +109,7 @@ def test_department_reaching_threshold_appears_on_its_own(client):
     data = dashboard(client)
     assert "Engineering" in names(data)  # 5 respondents now
     assert "Other teams" not in names(data)  # HR alone (2) can't be pooled into anything big enough
-    assert data["some_responses_hidden"] is True
+    assert data["small_teams_left_out"] is True
     assert_no_small_group_visible(data)
 
 
