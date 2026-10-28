@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from .. import models
-from ..auth import current_membership
+from ..auth import require_admin
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -21,15 +21,10 @@ def level_for(avg):
 
 
 @router.get("")
-def org_dashboard(org_id: int, m: models.Membership = Depends(current_membership), db: Session = Depends(get_db)):
-    if m.role != "admin":
-        raise HTTPException(403, "Admins only")
-
-    org = db.get(models.Organization, org_id)
-    if not org:
-        raise HTTPException(404, "Organization not found")
-
-    members = db.query(models.Membership).filter_by(org_id=org_id).all()
+def org_dashboard(m: models.Membership = Depends(require_admin), db: Session = Depends(get_db)):
+    # The org always comes from the caller's token-selected membership, never from the request.
+    org = m.org
+    members = db.query(models.Membership).filter_by(org_id=org.id).all()
     departments = []
     all_flags = {}
     for dept in org.departments:
