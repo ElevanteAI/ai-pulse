@@ -6,7 +6,7 @@ from ..db import get_db
 from .. import models
 from ..auth import require_admin
 from ..config import MIN_GROUP_SIZE
-from ..services import aggregation as agg
+from ..services import aggregation as agg, policy_check
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -20,6 +20,7 @@ def group(name, people, employees=None, merged=None):
         "status": "shown",
         **agg.summarise(people),
         "top_risks": agg.risk_counts(people)[:3],
+        "policy_reality": policy_check.for_group(people),
         **({"includes": merged} if merged else {}),
     }
 
@@ -82,4 +83,5 @@ def org_dashboard(m: models.Membership = Depends(require_admin), db: Session = D
         "some_responses_hidden": some_hidden,
         "top_risks": agg.risk_counts(included)[:5] if enough else [],
         "ai_scoring": agg.ai_scoring_health(included) if enough else None,
+        "policy_reality": policy_check.for_group(included) if enough else None,
     }

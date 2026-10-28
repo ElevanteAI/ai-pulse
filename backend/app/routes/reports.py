@@ -8,6 +8,7 @@ from .. import models
 from ..auth import current_membership
 from ..utils import maturity_level
 from ..services.questions import load_questions
+from ..services import policy_check
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 log = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ def my_report(m: models.Membership = Depends(current_membership), db: Session = 
         "level": maturity_level(avg),
         "risks": flags,
         "ai_assessments": ai_assessments,
+        "policy_check": policy_check.for_employee(rows),
         "next_steps": NEXT_STEPS.get(m.job_role, NEXT_STEPS["manager"]),
     }
 
