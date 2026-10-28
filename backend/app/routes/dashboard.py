@@ -8,6 +8,8 @@ from ..auth import current_membership
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 # Privacy threshold: teams with fewer than this many completed responses are hidden
+# to prevent individual identification and protect anonymity per GDPR requirements.
+# This constant is reusable across the application for consistent enforcement.
 MIN_GROUP_SIZE = 5
 
 
