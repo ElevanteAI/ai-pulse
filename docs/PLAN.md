@@ -28,7 +28,8 @@ Each branch is cut from `main`, tested, and merged back with `--no-ff`, so `git 
 | `feat/client-right-to-delete` | Client request #2 (V13) | Test that deletion removes the person from the dashboard immediately |
 | `feat/policy-reality-check` | My feature | Tests plus UI |
 | `feat/frontend-ux` | Real dashboard, report, delete button, error handling | Manual walkthrough + build |
-| `chore/dev-experience` | V16, V24: Docker, compose, CI, Makefile-style scripts | CI green, `docker compose up` |
+| `chore/dev-experience` | V16, V24: Docker, compose, CI | CI steps run locally; Docker not built (see README) |
+| `chore/bump-vite` | V25 (added during the work) | `npm audit` before/after |
 | `docs/submission-readme` | Final README | n/a |
 
 ## Deliberately not doing (and why)
