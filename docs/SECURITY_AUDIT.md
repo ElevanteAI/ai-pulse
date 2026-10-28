@@ -2,7 +2,7 @@
 
 Audit of the inherited code at commit `5e3713c` ("Add client request from Northwind").
 Every finding marked **Reproduced** was confirmed by running it against that commit, not just by reading the code.
-The **Status** column is updated as fixes land; see the root `README.md` for what changed and on which branch.
+The **Status** column reflects the final state of `main`. Each fix landed on its own branch with tests; the root `README.md` maps findings to branches.
 
 Severity scale:
 
@@ -15,30 +15,32 @@ Severity scale:
 
 | # | Severity | Area | Finding | Status |
 |---|---|---|---|---|
-| V1 | Critical | Tenant isolation | Dashboard trusts `?org_id=` from the URL, so any admin can read any org | Planned |
-| V2 | Critical | Auth | JWT signing secret committed to git (`backend/.env`), so tokens can be forged for any user | Planned |
-| V3 | Critical | Auth | Hard-coded fallback secret `ai-pulse-dev-secret` used if `SECRET_KEY` is unset | Planned |
-| V4 | High | Auth | `/auth/select-org` issues a token for an org the user doesn't belong to | Planned |
-| V5 | High | Auth | Passwords stored as unsalted SHA-256, compared with `==` | Planned |
-| V6 | High | Integrity | Diagnostic accepts duplicate answers, questions not assigned to the user, and unlimited resubmissions | Planned |
-| V7 | High | Correctness | Dashboard average divides the sum of all answer scores by department headcount | Planned |
-| V8 | High | Correctness | Report and dashboard use different maturity thresholds for the same score | Planned |
-| V9 | High | Correctness | Seniority compared as strings, so leads miss senior questions | Planned |
-| V10 | High | AI | LLM output trusted blindly: crashes on code-fenced JSON, stores score 7 and `"four"`, stores invented flags like `probably_lying` | Planned |
-| V11 | High | AI | Prompt injection: the employee's answer is pasted straight into the scoring prompt | Planned |
-| V12 | High | Privacy | Small departments are shown individually, so a person can be identified (also the client's request #1) | Planned |
-| V13 | High | Privacy | No way for an employee to delete their data (client's request #2) | Planned |
-| V14 | Medium | AI | Live LLM call has no error handling, no length cap, no temperature setting; a timeout returns a 500 and loses all answers | Planned |
-| V15 | Medium | Correctness | Departments with no responses show as "Beginner, 0.0" instead of "no data" | Planned |
-| V16 | Medium | Ops | Dockerfile can't start (`main:app` instead of `app.main:app`), copies `.env` into the image, runs as root | Planned |
-| V17 | Medium | Ops | `python -m app.seed` runs `drop_all` on whatever `DATABASE_URL` points to, including production | Planned |
-| V18 | Medium | Web | CORS `allow_origins=["*"]` | Planned |
-| V19 | Medium | Tests | `test_admin_cannot_see_other_org` asserts the vulnerability (expects 200) and uses the admin's own org id | Planned |
+| V1 | Critical | Tenant isolation | Dashboard trusts `?org_id=` from the URL, so any admin can read any org | Fixed |
+| V2 | Critical | Auth | JWT signing secret committed to git (`backend/.env`), so tokens can be forged for any user | Fixed in code; **key must still be rotated** |
+| V3 | Critical | Auth | Hard-coded fallback secret `ai-pulse-dev-secret` used if `SECRET_KEY` is unset | Fixed |
+| V4 | High | Auth | `/auth/select-org` issues a token for an org the user doesn't belong to | Fixed |
+| V5 | High | Auth | Passwords stored as unsalted SHA-256, compared with `==` | Fixed |
+| V6 | High | Integrity | Diagnostic accepts duplicate answers, questions not assigned to the user, and unlimited resubmissions | Fixed |
+| V7 | High | Correctness | Dashboard average divides the sum of all answer scores by department headcount | Fixed |
+| V8 | High | Correctness | Report and dashboard use different maturity thresholds for the same score | Fixed |
+| V9 | High | Correctness | Seniority compared as strings, so leads miss senior questions | Fixed |
+| V10 | High | AI | LLM output trusted blindly: crashes on code-fenced JSON, stores score 7 and `"four"`, stores invented flags like `probably_lying` | Fixed |
+| V11 | High | AI | Prompt injection: the employee's answer is pasted straight into the scoring prompt | Mitigated (not fully solvable) |
+| V12 | High | Privacy | Small departments are shown individually, so a person can be identified (also the client's request #1) | Fixed |
+| V13 | High | Privacy | No way for an employee to delete their data (client's request #2) | Fixed |
+| V14 | Medium | AI | Live LLM call has no error handling, no length cap, no temperature setting; a timeout returns a 500 and loses all answers | Fixed |
+| V15 | Medium | Correctness | Departments with no responses show as "Beginner, 0.0" instead of "no data" | Fixed |
+| V16 | Medium | Ops | Dockerfile can't start (`main:app` instead of `app.main:app`), copies `.env` into the image, runs as root | Fixed (image not built locally, see README) |
+| V17 | Medium | Ops | `python -m app.seed` runs `drop_all` on whatever `DATABASE_URL` points to, including production | Fixed |
+| V18 | Medium | Web | CORS `allow_origins=["*"]` | Fixed |
+| V19 | Medium | Tests | `test_admin_cannot_see_other_org` asserts the vulnerability (expects 200) and uses the admin's own org id | Fixed |
 | V20 | Low | Auth | No login rate limiting or lockout | Left (documented) |
 | V21 | Low | Web | Token kept in `localStorage` (readable by any XSS) | Left (documented) |
 | V22 | Low | Auth | Tokens can't be revoked before they expire (12h) | Left (documented) |
-| V23 | Low | Privacy | Open answers sent to a third-party LLM with no notice to the employee | Planned |
-| V24 | Low | Ops | No CI, `pytest` in production requirements, no `.dockerignore` | Planned |
+| V23 | Low | Privacy | Open answers sent to a third-party LLM with no notice to the employee | Partly fixed (notice added) |
+| V24 | Low | Ops | No CI, `pytest` in production requirements, no `.dockerignore` | Fixed |
+| V25 | Low | Supply chain | `npm audit`: vite/esbuild dev-server advisories (a malicious website can read files from a running `npm run dev`) | Partly fixed (patched to 5.4.21; rest needs vite 6+) |
+| V26 | Medium | Privacy | Differencing over time: an admin who watches the dashboard before and after one person submits or deletes can infer that person's score | Left (documented, question for client) |
 
 ---
 
@@ -112,7 +114,7 @@ The sum is over *every answer score*, but it's divided by *number of people*, in
 **Where:** `utils.maturity_level` (2/3/4 cut-offs) vs `dashboard.level_for` (1.5/2.5/3.5)
 
 **Reproduced:** an average of 3.6 is "Practitioner" on the employee's report and "Leader" on the dashboard.
-**Fix:** one function, `scoring.maturity_level`, used everywhere, with cut-offs on the 1–5 scale (`<2` Beginner, `<3` Exploring, `<4` Practitioner, else Leader).
+**Fix:** one function, `utils.maturity_level`, used everywhere, with cut-offs on the 1–5 scale (`<2` Beginner, `<3` Exploring, `<4` Practitioner, else Leader).
 
 ### V9. Seniority compared alphabetically
 **Where:** `services/questions.py`, `if seniority < q.get("min_seniority", "junior")`
@@ -177,12 +179,15 @@ Departments with no respondents show `average_score: 0.0, level: "Beginner"`. Le
 `test_admin_cannot_see_other_org` expects a 200, and `/dashboard?org_id=1` is Asha's *own* org, so it couldn't catch the bug anyway.
 **Fix:** rewritten to assert 403/own-org behaviour for both the cross-admin and the consultant case.
 
-## Low (deliberately left, with reasons)
+## Deliberately left or only partly fixed (with reasons)
 
 - **V20. No rate limiting on `/auth/login`.** Belongs at the gateway or reverse proxy, or in a small middleware with shared state (Redis). Out of scope for a single-process demo.
 - **V21. Token in `localStorage`.** Moving to an `httpOnly` cookie needs CSRF protection and same-site deployment decisions. The frontend renders no HTML from user input (no `dangerouslySetInnerHTML`), which keeps XSS exposure low for now.
 - **V22. No token revocation.** Tokens live 12 hours. Membership is re-checked from the database on every request, so removing someone from an org takes effect immediately. A full revocation list isn't worth it yet.
 - **V23. Third-party LLM processing.** I added a notice to the diagnostic screen. A real deployment needs a DPA with the model provider and a decision on retention. See the questions for the client in the README.
+
+- **V25. Dev-server advisories in vite/esbuild.** They affect only `npm run dev` on a developer's machine, not the built frontend users get. I took the non-breaking patch (5.4.11 → 5.4.21). The remaining advisories need vite 6+, which I'd do as its own change with a full UI check.
+- **V26. Differencing over time.** The minimum group size stops leadership seeing a small group. It doesn't stop someone comparing the Sales average just before and just after one named person submits (or deletes), and working out that person's score from the change. Real fixes are product decisions: refresh dashboards on a schedule (e.g. daily snapshots) instead of live, and/or only publish a change once several new responses have arrived. This conflicts slightly with the client's "disappear immediately" wording for deletion (a deletion should still remove data at once; only the *published aggregates* would refresh on a schedule). It's in the questions for the client.
 
 ## Things I checked that are fine
 
