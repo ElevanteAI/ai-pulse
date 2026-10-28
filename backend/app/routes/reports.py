@@ -5,6 +5,7 @@ from ..db import get_db
 from .. import models
 from ..auth import current_membership
 from ..utils import maturity_level
+from ..services.questions import load_questions
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -22,6 +23,19 @@ def my_report(m: models.Membership = Depends(current_membership), db: Session = 
     scores = [r.score for r in rows if r.score is not None]
     avg = sum(scores) / len(scores) if scores else None
     flags = sorted({f for r in rows for f in (r.flags or [])})
+    texts = {q["id"]: q["text"] for q in load_questions()}
+    # Be explicit about which parts of the result came from AI, and why
+    ai_assessments = [
+        {
+            "question": texts.get(r.question_id, r.question_id),
+            "status": r.ai_status,
+            "score": r.score,
+            "reason": r.reason,
+            "flags": r.flags or [],
+            "scored_by": r.scored_by,
+        }
+        for r in rows if r.ai_status
+    ]
     return {
         "name": m.user.name,
         "organization": m.org.name,
@@ -29,5 +43,6 @@ def my_report(m: models.Membership = Depends(current_membership), db: Session = 
         "average_score": round(avg, 2) if avg is not None else None,
         "level": maturity_level(avg),
         "risks": flags,
+        "ai_assessments": ai_assessments,
         "next_steps": NEXT_STEPS.get(m.job_role, NEXT_STEPS["manager"]),
     }

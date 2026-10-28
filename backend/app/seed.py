@@ -78,7 +78,8 @@ def run():
     # Some existing results so dashboards aren't empty
     def answer(email, org, qid, text, score, reason=None, flags=None):
         m = db.query(models.Membership).filter_by(user_id=users[email].id, org_id=org.id).first()
-        db.add(models.Response(membership_id=m.id, question_id=qid, answer=text, score=score, reason=reason, flags=flags or []))
+        db.add(models.Response(membership_id=m.id, question_id=qid, answer=text, score=score, reason=reason, flags=flags or [],
+                               ai_status="scored" if reason else None, scored_by="seed" if reason else None))
 
     answer("vikram@northwind.test", nw, "common-freq", "Daily", 4)
     answer("vikram@northwind.test", nw, "common-open", "Used ChatGPT to draft 20 follow-up emails and edited each one.", 4, "Regular use with editing.", [])

@@ -84,3 +84,16 @@ def test_scoring_points_are_not_sent_to_browser(client):
     h = _priya(client)
     for q in client.get("/diagnostic/questions", headers=h).json():
         assert "points" not in str(q)
+
+
+def test_unscoreable_ai_reply_does_not_fail_submission(client, monkeypatch):
+    """Original code: a ```json fenced reply raised JSONDecodeError and lost every answer."""
+    from app.services import llm
+    monkeypatch.setattr(llm, "score_answer", lambda q, a: "```json\n{\"score\": \"four\"}\n```")
+    h = _priya(client)
+    r = client.post("/diagnostic/submit", json={"answers": full_answers("support", "junior")}, headers=h)
+    assert r.status_code == 200
+    report = client.get("/reports/me", headers=h).json()
+    [ai] = report["ai_assessments"]
+    assert ai["status"] == "needs_review" and ai["score"] is None
+    assert report["average_score"] is not None  # still computed from the multiple-choice answers
