@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Integer, ForeignKey, DateTime, Text, Float, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
@@ -56,4 +56,4 @@ class Response(Base):
     # and the answer is left out of every average). None for multiple-choice answers.
     ai_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     scored_by: Mapped[str | None] = mapped_column(String(80), nullable=True)  # model name, for audit
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
