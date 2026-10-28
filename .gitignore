@@ -4,3 +4,15 @@ __pycache__/
 *.pyc
 *.db
 .pytest_cache/
+
+# Local environment and credentials. Keep templates only.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+secrets/

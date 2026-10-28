@@ -1,4 +1,18 @@
+from app import models
+from app.db import SessionLocal
 from tests.conftest import login
+
+
+def add_completed_assessment(membership_id, score=3, flags=None):
+    db = SessionLocal()
+    assessment = models.Assessment(membership_id=membership_id, status="completed")
+    db.add(assessment)
+    db.flush()
+    db.add(models.Response(assessment_id=assessment.id, membership_id=membership_id,
+                           question_id="common-freq", answer="A few times a week",
+                           score=score, flags=flags or []))
+    db.commit()
+    db.close()
 
 
 def test_login_lists_organizations(client):
@@ -15,15 +29,53 @@ def test_employee_sees_questions(client):
 
 
 def test_admin_dashboard(client):
-    headers, data = login(client, "asha@northwind.test", "Northwind Logistics")
-    org_id = data["organizations"][0]["org_id"]
-    r = client.get(f"/dashboard?org_id={org_id}", headers=headers)
+    headers, _ = login(client, "asha@northwind.test", "Northwind Logistics")
+    r = client.get("/dashboard", headers=headers)
     assert r.status_code == 200
-    assert len(r.json()["departments"]) == 4
+    assert r.json()["departments"] == []
 
 
 def test_admin_cannot_see_other_org(client):
-    headers, _ = login(client, "asha@northwind.test", "Northwind Logistics")
+    headers, _ = login(client, "ravi@consult.test", "Bluepeak Retail")
     r = client.get("/dashboard?org_id=1", headers=headers)
     assert r.status_code == 200
-    assert "departments" in r.json()
+    assert r.json()["organization"] == "Bluepeak Retail"
+
+
+def test_user_cannot_select_an_organization_they_do_not_belong_to(client):
+    headers, _ = login(client, "priya@northwind.test")
+    r = client.post("/auth/select-org", json={"org_id": 2}, headers=headers)
+    assert r.status_code == 403
+
+
+def test_employee_cannot_submit_a_question_assigned_to_another_role(client):
+    headers, _ = login(client, "priya@northwind.test", "Northwind Logistics")
+    r = client.post("/diagnostic/submit", headers=headers,
+                    json={"answers": [{"question_id": "eng-arch", "answer": "No"}]})
+    assert r.status_code == 400
+
+
+def test_small_departments_are_only_shown_as_safe_aggregate(client):
+    db = SessionLocal()
+    memberships = db.query(models.Membership).filter_by(org_id=1, role="employee").limit(5).all()
+    db.close()
+    for membership in memberships:
+        add_completed_assessment(membership.id, flags=["policy_unaware"])
+    headers, _ = login(client, "asha@northwind.test", "Northwind Logistics")
+    r = client.get("/dashboard", headers=headers)
+    assert r.status_code == 200
+    assert [item["department"] for item in r.json()["departments"]] == ["Other teams"]
+    assert r.json()["top_risks"] == [["policy_unaware", 5]]
+
+
+def test_employee_can_delete_all_their_diagnostic_data(client):
+    db = SessionLocal()
+    membership = db.query(models.Membership).filter_by(user_id=5, org_id=1).first()
+    db.close()
+    add_completed_assessment(membership.id)
+    headers, _ = login(client, "priya@northwind.test", "Northwind Logistics")
+    assert client.get("/reports/me", headers=headers).json()["answered"] == 1
+    assert client.delete("/reports/me", headers=headers).status_code == 204
+    report = client.get("/reports/me", headers=headers).json()
+    assert report["answered"] == 0
+    assert report["level"] == "Not assessed"

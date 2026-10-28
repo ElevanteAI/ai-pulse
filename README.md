@@ -1,58 +1,96 @@
 # AI Pulse
 
-AI Pulse helps a company understand how well its people use AI at work, team by team.
+AI Pulse measures practical, safe AI adoption by role. Employees complete a role-aware diagnostic and receive a private report; organization admins see only privacy-safe trends.
 
-- **Employees** sign in, pick their organization, and take a short diagnostic. Questions adapt to their job role and seniority. One open-ended answer is scored by an LLM.
-- **Each employee** gets a personal report: maturity level, risks, and next steps for their role.
-- **Company admins** see a dashboard of AI maturity by department and the top risks across the company.
-- Some users (consultants, group-company HR) belong to **more than one organization** and choose one after login.
+## What changed
 
-This codebase was started by a previous developer who has since left. It runs, but it is unfinished, and we are not confident in all of it.
+The inherited prototype ran, but was not safe to give to a client. This branch fixes the highest-risk issues:
 
-## Stack
+- **Tenant isolation:** organization membership is verified before a scoped token is issued. The dashboard gets its organization from that token, never a browser-supplied ID.
+- **Northwind privacy:** a department needs at least five completed diagnostics to appear. Small departments are combined as `Other teams` only when that combined group also reaches five; risk trends use the same rule.
+- **Right to delete:** `DELETE /reports/me` hard-deletes the selected employee's answers and assessments. Dashboard calculations use current data, so the removal is immediate.
+- **Assessment integrity:** a submission must contain every assigned question exactly once. Reports and dashboards use only the latest completed assessment.
+- **Correctness:** seniority is an explicit rank, role-inappropriate questions are rejected, and all maturity labels share one implementation.
+- **AI guardrails:** only schema-valid model output is stored: integer scores 1–5 and approved risk flags. Provider/model failures save nothing.
+- **Configuration security:** real `.env` files are ignored and removed from Git. Production rejects the default JWT secret; CORS is allow-listed and live AI settings are checked at startup.
+- **Usable UI:** a readable privacy-safe dashboard replaces raw JSON; the diagnostic blocks incomplete submissions and warns users not to enter sensitive data.
 
-- Backend: Python, FastAPI, SQLAlchemy (SQLite by default)
-- Frontend: React (Vite)
-- AI: any OpenAI-compatible chat completions endpoint, or mock mode with canned responses
+## Northwind's request
 
-## Run it locally
+Both requested changes are implemented.
 
-Backend:
+1. Department score and risk data are hidden below the five-completed-person threshold. `Other teams` is only returned when it is itself large enough to be anonymous.
+2. **Delete my diagnostic data** permanently removes a user's answers and report in their selected organization, and immediately removes their dashboard contribution.
+
+Confirm before production: whether legal retention overrides hard deletion; whether a minimal deletion audit record is permitted; whether five is correct in every jurisdiction; and exactly which leadership roles may see aggregated data.
+
+## Original feature: safe-use coaching
+
+When a risk is detected, the personal report gives one focused coaching card: what it means and one safe action to take. For example, a customer-data risk teaches redaction before prompting. This closes the gap between identifying unsafe AI use and helping an employee improve.
+
+## Run locally
+
+Prerequisites: Python 3.12+ and Node.js 20+.
 
 ```bash
 cd backend
+cp .env.example .env
 pip install -r requirements.txt
-python -m app.seed          # creates demo data, password for all users: pulse123
+python -m app.seed
 uvicorn app.main:app --reload
 ```
 
-Frontend:
+In another terminal:
 
 ```bash
 cd frontend
 npm install
-npm run dev                 # http://localhost:5173
+npm run dev
 ```
 
-Tests:
+Open `http://localhost:5173`. `python -m app.seed` deletes and recreates the local database; it is demo-only.
 
-```bash
-cd backend
-python -m pytest
+### AI modes
+
+Tests use safe, deterministic `AI_MODE=mock`. For a local Groq demonstration, keep credentials only in untracked `backend/.env`:
+
+```env
+AI_MODE=live
+LLM_API_URL=https://api.groq.com/openai/v1/chat/completions
+LLM_API_KEY=your-local-groq-key
+LLM_MODEL=openai/gpt-oss-20b
 ```
 
-## Demo accounts (password `pulse123`)
+Never commit or put this key in frontend code. A live provider must not receive enterprise data until client data-processing approval, provider retention terms, data region, and prompt-redaction rules are agreed.
+
+## Demo accounts
+
+All seeded accounts use password `pulse123`.
 
 | Email | Organization(s) | Role |
 |---|---|---|
 | asha@northwind.test | Northwind Logistics | Admin |
 | meera@bluepeak.test | Bluepeak Retail | Admin |
-| ravi@consult.test | Both | Employee at Northwind, admin at Bluepeak |
-| priya@northwind.test | Northwind Logistics | Employee (Support) |
-| dev@northwind.test | Northwind Logistics | Employee (Engineering, lead) |
+| ravi@consult.test | Both | Northwind employee; Bluepeak admin |
+| priya@northwind.test | Northwind Logistics | Support employee |
+| dev@northwind.test | Northwind Logistics | Engineering lead |
 
-## AI mode
+## Verify
 
-`AI_MODE=mock` (default) returns canned model responses from `backend/data/mock_ai_responses.json`. Like a real model, they are not always well-formed.
+```bash
+cd backend && python -m pytest -q
+cd frontend && npm run build
+```
 
-`AI_MODE=live` calls `LLM_API_URL` with `LLM_API_KEY` and `LLM_MODEL`.
+Tests cover tenant isolation, organization selection, role-question enforcement, seniority, small-group suppression, deletion, and malformed AI output.
+
+## Deliberately left for a production rollout
+
+- Replace SQLite and `create_all()` with managed PostgreSQL and Alembic migrations.
+- Migrate inherited SHA-256 passwords to Argon2id/bcrypt.
+- Add SSO/SAML, MFA, login rate limits, secure HTTP-only sessions, audit logs, monitoring, backup, encryption/key management, accessibility and independent security testing.
+- Version question banks and establish formal assessment/retention policies.
+
+## AI-tool disclosure
+
+AI tools were used to map the codebase, generate test ideas, and review edge cases. Every change was read and tested. One rejected AI suggestion was to label the sparse inherited demo answers as complete assessments simply to populate the dashboard; that would misrepresent the product, so completion is instead enforced by validated full submission.
