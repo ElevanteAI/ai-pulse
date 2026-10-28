@@ -18,4 +18,4 @@ def test_admin_dashboard(client):
     headers, data = login(client, "asha@northwind.test", "Northwind Logistics")
     r = client.get("/dashboard", headers=headers)
     assert r.status_code == 200
-    assert len(r.json()["departments"]) == 4
+    assert [g["department"] for g in r.json()["groups"]] == ["Sales", "Support", "Other teams"]
