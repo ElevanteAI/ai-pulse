@@ -1,10 +1,16 @@
-"""Dashboard numbers, checked against values worked out by hand from the seed data.
+"""Dashboard numbers, checked against values worked out by hand.
 
-Seed (Northwind): Vikram/Sales answered 4 and 4 -> 4.0.  Priya/Support answered 2 and 3 -> 2.5.
-Engineering and HR have no answers.
+Northwind Sales in the seed (option index + 1 = points):
+  Vikram  4,4,4,4,4,4 + open 4       -> 4.0
+  Neha    3,4,2,2,3     + open 3       -> 17/6 = 2.833
+  Rohan   4,3,3,3,4,4 + open 2       -> 23/7 = 3.286
+  Ananya  5,5,5,5,5,5 + open 5       -> 5.0
+  Karan   1,1,2,2,1     + open 1       -> 8/6  = 1.333
+  Sales = mean of people = 16.452 / 5 = 3.29 (Practitioner). Farah hasn't responded.
 """
-from app import models
-from app.db import SessionLocal
+from types import SimpleNamespace as NS
+
+from app.services import aggregation as agg
 from app.utils import maturity_level
 from tests.conftest import login
 
@@ -14,61 +20,52 @@ def dashboard(client, email="asha@northwind.test", org="Northwind Logistics"):
     return client.get("/dashboard", headers=headers).json()
 
 
-def dept(data, name):
-    return next(d for d in data["departments"] if d["department"] == name)
+def group(data, name):
+    return next(g for g in data["groups"] if g["department"] == name)
 
 
-def test_average_is_per_respondent_not_divided_by_headcount(client):
-    """Original: Sales = (4+4)/3 people = 2.67. Vikram is the only respondent and averages 4.0."""
-    sales = dept(dashboard(client), "Sales")
-    assert sales["employees"] == 3
-    assert sales["respondents"] == 1
-    assert sales["average_score"] == 4.0
+def person(*scores, flags=(), status=None):
+    rows = [NS(score=s, flags=list(flags), ai_status=status) for s in scores]
+    return (NS(), rows)
 
 
-def test_department_with_no_answers_is_not_assessed_not_beginner(client):
-    eng = dept(dashboard(client), "Engineering")
-    assert eng["average_score"] is None
-    assert eng["level"] == "Not assessed"
+def test_sales_average_matches_hand_calculation(client):
+    sales = group(dashboard(client), "Sales")
+    assert sales["employees"] == 6
+    assert sales["respondents"] == 5
+    assert sales["average_score"] == 3.29
+    assert sales["level"] == "Practitioner"
 
 
-def test_report_and_dashboard_agree_on_level(client):
-    """Original: thresholds differed, so 3.6 was 'Practitioner' on the report and 'Leader' on the dashboard."""
-    headers, _ = login(client, "vikram@northwind.test", "Northwind Logistics")
-    report = client.get("/reports/me", headers=headers).json()
-    assert dept(dashboard(client), "Sales")["level"] == report["level"]
+def test_average_is_per_person_not_per_answer():
+    # One person with 8 answers of 5, one with a single 1. Per person: (5 + 1) / 2 = 3.0.
+    # The original "all answers / headcount" logic would give 41 / 2 = 20.5.
+    assert agg.summarise([person(*[5] * 8), person(1)])["average_score"] == 3.0
+
+
+def test_people_with_no_scores_do_not_drag_the_average_down():
+    # A respondent whose only answer couldn't be scored is counted, but has no average
+    s = agg.summarise([person(4), person(None, status="needs_review")])
+    assert s["respondents"] == 2 and s["average_score"] == 4.0
+
+
+def test_no_answers_is_not_assessed_not_beginner():
+    assert agg.summarise([]) == {"respondents": 0, "average_score": None, "level": "Not assessed"}
+
+
+def test_report_and_dashboard_use_the_same_scale(client):
+    """Original: 3.6 was 'Practitioner' on the report and 'Leader' on the dashboard."""
     for avg, expected in [(1.9, "Beginner"), (2.0, "Exploring"), (3.6, "Practitioner"), (4.0, "Leader")]:
         assert maturity_level(avg) == expected
+    headers, _ = login(client, "ananya@northwind.test", "Northwind Logistics")
+    assert client.get("/reports/me", headers=headers).json()["level"] == maturity_level(5.0)
 
 
-def test_person_with_more_answers_does_not_outweigh_others(client):
-    db = SessionLocal()
-    nw = db.query(models.Organization).filter_by(name="Northwind Logistics").one()
-    eng = next(d for d in nw.departments if d.name == "Engineering")
-    dev, sara = (db.query(models.Membership).filter_by(org_id=nw.id, department_id=eng.id).order_by(models.Membership.id).all())
-    for i in range(8):
-        db.add(models.Response(membership_id=dev.id, question_id=f"q{i}", answer="x", score=5))
-    db.add(models.Response(membership_id=sara.id, question_id="q0", answer="x", score=1))
-    db.commit()
-    # Per person: Dev 5.0, Sara 1.0 -> 3.0. A flat average over answers would give 41/9 = 4.56.
-    assert dept(dashboard(client), "Engineering")["average_score"] == 3.0
+def test_risks_count_people_not_answers():
+    people = [person(3, 3, 3, flags=["customer_data_shared"]), person(4, flags=["customer_data_shared"])]
+    assert agg.risk_counts(people) == [{"risk": "customer_data_shared", "people": 2}]
 
 
-def test_risks_count_people_not_answers(client):
-    db = SessionLocal()
-    priya = db.query(models.Membership).join(models.User).filter(models.User.email == "priya@northwind.test").one()
-    for _ in range(3):
-        db.add(models.Response(membership_id=priya.id, question_id="x", answer="x", score=3, flags=["customer_data_shared"]))
-    db.commit()
-    risks = {r["risk"]: r["people"] for r in dashboard(client)["top_risks"]}
-    assert risks["customer_data_shared"] == 1
-
-
-def test_needs_review_answers_are_excluded_and_reported(client):
-    db = SessionLocal()
-    vikram = db.query(models.Membership).join(models.User).filter(models.User.email == "vikram@northwind.test").one()
-    db.add(models.Response(membership_id=vikram.id, question_id="x", answer="x", score=None, ai_status="needs_review"))
-    db.commit()
-    data = dashboard(client)
-    assert dept(data, "Sales")["average_score"] == 4.0
-    assert data["ai_scoring"]["needs_review"] == 1
+def test_ai_scoring_health_counts_needs_review():
+    people = [person(4, status="scored"), person(None, status="needs_review"), person(3)]
+    assert agg.ai_scoring_health(people) == {"open_answers": 2, "needs_review": 1}

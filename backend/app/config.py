@@ -35,3 +35,7 @@ TOKEN_HOURS = 12
 # OWASP 2023 recommendation for PBKDF2-HMAC-SHA256. Tests lower it to keep the suite fast;
 # the count is stored inside each hash, so existing hashes keep verifying if this changes.
 PASSWORD_ITERATIONS = int(os.getenv("PASSWORD_ITERATIONS", "600000"))
+
+# Client requirement (Northwind): no group smaller than this is ever reported on its own.
+# Can be raised per deployment, never lowered below 5.
+MIN_GROUP_SIZE = max(5, int(os.getenv("MIN_GROUP_SIZE", "5")))
