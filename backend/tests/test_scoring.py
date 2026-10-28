@@ -54,6 +54,19 @@ def test_invented_flags_never_reach_storage():
     assert "probably_lying" in out["problem"]
 
 
+def test_non_string_flags_need_review_instead_of_crashing():
+    # Found in the second-pass review: a list or object inside "flags" raised TypeError (unhashable)
+    for flags in ['[{"a": 1}]', '[["customer_data_shared"]]', '[1]', '[null]']:
+        out = parse_model_output('{"score": 4, "reason": "x", "flags": %s}' % flags)
+        assert out["status"] == NEEDS_REVIEW and out["score"] is None
+
+
+def test_non_string_flags_from_model_do_not_raise(monkeypatch):
+    monkeypatch.setattr(llm, "score_answer", lambda q, a: '{"score": 4, "reason": "Good.", "flags": [{"x": 1}]}')
+    out = score_open_answer("q", "I draft emails with AI.")
+    assert out["status"] == NEEDS_REVIEW and out["score"] is None
+
+
 def test_garbage_needs_review():
     for raw in ["", "Sure! Here is the score: 4", "[4]", None, "{not json"]:
         assert parse_model_output(raw)["status"] == NEEDS_REVIEW

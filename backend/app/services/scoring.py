@@ -72,6 +72,8 @@ def parse_model_output(raw: str) -> dict:
     flags = data.get("flags")
     if not isinstance(flags, list):
         return _needs_review("flags missing")
+    if not all(isinstance(f, str) for f in flags):
+        return _needs_review("flags must be a list of labels")
     unknown = [f for f in flags if f not in ALLOWED_FLAGS]
     if unknown:
         # Never show leadership a label the model invented about a person (e.g. "probably_lying")
