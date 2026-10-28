@@ -4,3 +4,8 @@ __pycache__/
 *.pyc
 *.db
 .pytest_cache/
+
+# Local config and environments: never commit secrets
+.env
+.venv/
+venv/

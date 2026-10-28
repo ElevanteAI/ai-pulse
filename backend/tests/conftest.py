@@ -3,6 +3,9 @@ import pytest
 
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["AI_MODE"] = "mock"
+os.environ["APP_ENV"] = "test"
+os.environ["SECRET_KEY"] = "test-secret-key-that-is-long-enough-1234567890"
+os.environ["PASSWORD_ITERATIONS"] = "1000"  # fast hashing in tests only
 
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
