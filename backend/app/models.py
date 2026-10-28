@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, Integer, ForeignKey, DateTime, Text, Float, JSON
+from sqlalchemy import String, ForeignKey, DateTime, Text, Float, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
@@ -41,11 +41,26 @@ class Membership(Base):
     user = relationship("User", back_populates="memberships")
     org = relationship("Organization")
     department = relationship("Department")
+    assessments = relationship("Assessment", back_populates="membership", cascade="all, delete-orphan")
+
+
+class Assessment(Base):
+    """One complete diagnostic submission for one membership."""
+    __tablename__ = "assessments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    membership_id: Mapped[int] = mapped_column(ForeignKey("memberships.id"), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="completed")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    membership = relationship("Membership", back_populates="assessments")
+    responses = relationship("Response", back_populates="assessment", cascade="all, delete-orphan")
 
 
 class Response(Base):
     __tablename__ = "responses"
+    __table_args__ = (UniqueConstraint("assessment_id", "question_id", name="uq_response_assessment_question"),)
     id: Mapped[int] = mapped_column(primary_key=True)
+    assessment_id: Mapped[int] = mapped_column(ForeignKey("assessments.id"), index=True)
     membership_id: Mapped[int] = mapped_column(ForeignKey("memberships.id"))
     question_id: Mapped[str] = mapped_column(String(40))
     answer: Mapped[str] = mapped_column(Text)
@@ -53,3 +68,4 @@ class Response(Base):
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     flags: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    assessment = relationship("Assessment", back_populates="responses")

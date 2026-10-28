@@ -5,7 +5,8 @@ export function getToken() {
 }
 
 export function setToken(t) {
-  localStorage.setItem("token", t);
+  if (t) localStorage.setItem("token", t);
+  else localStorage.removeItem("token");
 }
 
 export async function api(path, options = {}) {
@@ -17,7 +18,7 @@ export async function api(path, options = {}) {
       ...(options.headers || {}),
     },
   });
-  const data = await res.json();
+  const data = res.status === 204 ? null : await res.json();
   if (!res.ok) throw new Error(data.detail || "Request failed");
   return data;
 }

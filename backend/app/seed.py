@@ -18,6 +18,15 @@ PEOPLE_NORTHWIND = [
     ("Dev Malhotra", "dev@northwind.test", "Engineering", "employee", "engineering", "lead"),
     ("Sara Thomas", "sara@northwind.test", "Engineering", "employee", "engineering", "mid"),
     ("Imran Khan", "imran@northwind.test", "HR", "employee", "manager", "senior"),
+    ("Jack Smith", "jack@northwind.test", "Engineering", "employee", "engineering", "mid"),
+    ("Savi Guptill", "savi@northwind.test", "HR", "employee", "manager", "senior"),
+    ("Aryan Patro", "aryan@northwind.test", "Engineering", "employee", "engineering", "mid"),
+    ("Shubham Sharma", "shubham@northwind.test", "Engineering", "employee", "engineering", "mid"),
+    ("Junaid Hussain", "junaid@northwind.test", "HR", "employee", "manager", "senior"),
+    ("Ram Yadav", "ram@northwind.test", "HR", "employee", "manager", "senior"),
+    ("Monika Dahal", "monika@northwind.test", "HR", "employee", "manager", "senior"),
+    ("Ravi Kapoor", "ravi@northwind.test", "HR", "employee", "manager", "senior"),
+    ("Pranav Sharma", "pranav@northwind.test", "Engineering", "employee", "engineering", "mid"),
 ]
 PEOPLE_BLUEPEAK = [
     ("Meera Pillai", "meera@bluepeak.test", None, "admin", "manager", "lead"),
@@ -72,9 +81,17 @@ def run():
     db.flush()
 
     # Some existing results so dashboards aren't empty
+    assessments = {}
     def answer(email, org, qid, text, score, reason=None, flags=None):
         m = db.query(models.Membership).filter_by(user_id=users[email].id, org_id=org.id).first()
-        db.add(models.Response(membership_id=m.id, question_id=qid, answer=text, score=score, reason=reason, flags=flags or []))
+        assessment = assessments.get(m.id)
+        if not assessment:
+            assessment = models.Assessment(membership_id=m.id, status="completed")
+            db.add(assessment)
+            db.flush()
+            assessments[m.id] = assessment
+        db.add(models.Response(assessment_id=assessment.id, membership_id=m.id, question_id=qid,
+                               answer=text, score=score, reason=reason, flags=flags or []))
 
     answer("vikram@northwind.test", nw, "common-freq", "Daily", 4)
     answer("vikram@northwind.test", nw, "common-open", "Used ChatGPT to draft 20 follow-up emails and edited each one.", 4, "Regular use with editing.", [])

@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from .. import models
 from ..auth import current_membership
-from ..services.questions import questions_for, load_questions
-from ..services.scoring import score_open_answer
+from ..services.questions import questions_for
+from ..services.scoring import ScoringError, score_open_answer
 
 router = APIRouter(prefix="/diagnostic", tags=["diagnostic"])
 
@@ -34,22 +34,47 @@ def get_questions(m: models.Membership = Depends(current_membership)):
 
 @router.post("/submit")
 def submit(body: SubmitIn, m: models.Membership = Depends(current_membership), db: Session = Depends(get_db)):
-    bank = {q["id"]: q for q in load_questions()}
+    assigned_questions = questions_for(m.job_role, m.seniority)
+    bank = {q["id"]: q for q in assigned_questions}
+    answer_ids = [answer.question_id for answer in body.answers]
+    expected_ids = set(bank)
+    if len(answer_ids) != len(set(answer_ids)):
+        raise HTTPException(400, "Each question can be answered only once")
+    if set(answer_ids) != expected_ids:
+        raise HTTPException(400, "Submit one non-empty answer for every assigned question")
+
+    prepared = []
     for a in body.answers:
         q = bank.get(a.question_id)
         if not q:
-            raise HTTPException(400, f"Unknown question {a.question_id}")
-        resp = models.Response(membership_id=m.id, question_id=q["id"], answer=a.answer)
+            raise HTTPException(400, "Question is not assigned to this user")
+        if not a.answer.strip():
+            raise HTTPException(400, "Answers cannot be blank")
+        result = {"score": None, "reason": None, "flags": []}
         if q["type"] == "mcq":
             option = next((o for o in q["options"] if o["text"] == a.answer), None)
             if option is None:
-                raise HTTPException(400, f"Invalid option for {q['id']}")
-            resp.score = option["points"]
+                raise HTTPException(400, "Invalid answer option")
+            result["score"] = option["points"]
         else:
-            result = score_open_answer(q["text"], a.answer)
-            resp.score = result["score"]
-            resp.reason = result["reason"]
-            resp.flags = result["flags"]
-        db.add(resp)
+            try:
+                result = score_open_answer(q["text"], a.answer)
+            except ScoringError:
+                raise HTTPException(502, "AI scoring is temporarily unavailable; no answers were saved")
+        prepared.append((q, a.answer, result))
+
+    assessment = models.Assessment(membership_id=m.id, status="completed")
+    db.add(assessment)
+    db.flush()
+    for q, answer, result in prepared:
+        db.add(models.Response(
+            assessment_id=assessment.id,
+            membership_id=m.id,
+            question_id=q["id"],
+            answer=answer,
+            score=result["score"],
+            reason=result["reason"],
+            flags=result["flags"],
+        ))
     db.commit()
-    return {"saved": len(body.answers)}
+    return {"saved": len(prepared), "assessment_id": assessment.id}
