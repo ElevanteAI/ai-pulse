@@ -18,7 +18,10 @@ IS_DEV = APP_ENV in ("dev", "test")
 SECRET_KEY = os.getenv("SECRET_KEY", "")
 if not SECRET_KEY:
     if not IS_DEV:
-        raise RuntimeError("SECRET_KEY must be set when APP_ENV is not dev/test")
+        raise RuntimeError(
+            "SECRET_KEY must be set when APP_ENV is not dev/test. "
+            "For local development run:  cp .env.example .env  (inside backend/)"
+        )
     SECRET_KEY = secrets.token_urlsafe(48)  # random per process, never a known value
 elif not IS_DEV and (len(SECRET_KEY) < 32 or "change-me" in SECRET_KEY):
     raise RuntimeError("SECRET_KEY is too weak for production (need 32+ random characters)")

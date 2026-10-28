@@ -1,0 +1,28 @@
+# Local demo: docker compose up --build   ->  app on http://localhost:8080, API on http://localhost:8000
+# Seeds demo data on first start only (the database lives in the "pulse-data" volume).
+services:
+  backend:
+    build: ./backend
+    environment:
+      APP_ENV: dev                      # demo only: allows seeding and a random SECRET_KEY
+      DATABASE_URL: sqlite:////data/aipulse.db
+      CORS_ORIGINS: http://localhost:8080
+      AI_MODE: mock
+    command: sh -c "[ -f /data/aipulse.db ] || python -m app.seed; exec uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    volumes:
+      - pulse-data:/data
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  pulse-data:
