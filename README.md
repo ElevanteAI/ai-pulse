@@ -60,7 +60,7 @@ If you pulled over an older checkout and the backend says `SECRET_KEY must be se
 | `DATABASE_URL` | `sqlite:///./aipulse.db` | |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated. |
 | `MIN_GROUP_SIZE` | `5` | Can be raised, never below 5. |
-| `AI_MODE` | `mock` | `mock` = canned replies (they ignore what you wrote; labelled "demo mode" in the UI). `live` = `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` (OpenAI-compatible). |
+| `AI_MODE` | `mock` | `mock` = canned replies (they ignore what you wrote; labelled "demo mode" in the UI). `live` = `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` (OpenAI-compatible). Production refuses to start unless this is `live`. |
 
 ---
 

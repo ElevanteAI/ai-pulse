@@ -30,6 +30,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aipulse.db")
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
 
 AI_MODE = os.getenv("AI_MODE", "mock")  # "mock" or "live"
+if not IS_DEV and AI_MODE != "live":
+    # Mock replies are canned and ignore the answer: in production they'd pin fake scores and risks on real people
+    raise RuntimeError("AI_MODE must be 'live' when APP_ENV is not dev/test (mock scoring is for demos only)")
 LLM_API_URL = os.getenv("LLM_API_URL", "")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "")

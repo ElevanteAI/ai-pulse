@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+
 import jwt
 
 from app import models
@@ -75,6 +79,38 @@ def test_seed_refuses_to_run_in_production(monkeypatch):
         assert "Refusing to seed" in str(e)
     else:
         raise AssertionError("seed.run() should refuse outside dev/test")
+
+
+def test_token_without_expiry_or_subject_is_rejected(client):
+    """A correctly signed token must still carry exp and sub, so a leaked key can't mint forever-tokens."""
+    from app.config import SECRET_KEY
+    db = SessionLocal()
+    asha = db.query(models.User).filter_by(email="asha@northwind.test").one()
+    org = db.query(models.Organization).filter_by(name="Northwind Logistics").one()
+    no_exp = jwt.encode({"sub": str(asha.id), "org": org.id}, SECRET_KEY, algorithm="HS256")
+    no_sub = jwt.encode({"org": org.id, "exp": 9999999999}, SECRET_KEY, algorithm="HS256")
+    for token in (no_exp, no_sub):
+        assert client.get("/reports/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+
+
+def _import_config(**env):
+    """Import app.config in a fresh process (it is evaluated once, at import time)."""
+    backend = os.path.join(os.path.dirname(__file__), "..")
+    full_env = {k: v for k, v in os.environ.items() if not k.startswith(("APP_ENV", "AI_MODE", "LLM_"))}
+    full_env.update(env, SECRET_KEY="x" * 40)
+    return subprocess.run([sys.executable, "-c", "import app.config"], cwd=backend, env=full_env,
+                          capture_output=True, text=True)
+
+
+def test_production_refuses_mock_ai_scoring():
+    # Mock replies are canned and ignore the answer, so in production they'd attach fake scores and
+    # risk flags to real employees. Production must say AI_MODE=live explicitly.
+    # "" rather than unset: an unset value would be filled from the developer's local .env
+    for mode in ("mock", ""):
+        r = _import_config(APP_ENV="production", AI_MODE=mode)
+        assert r.returncode != 0 and "AI_MODE" in r.stderr, r.stderr
+    assert _import_config(APP_ENV="production", AI_MODE="live").returncode == 0
+    assert _import_config(APP_ENV="dev", AI_MODE="mock").returncode == 0
 
 
 def test_login_helper_still_works(client):
