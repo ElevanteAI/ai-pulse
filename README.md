@@ -67,7 +67,7 @@ If you pulled over an older checkout and the backend says `SECRET_KEY must be se
 
 ## What I found wrong
 
-26 findings, each reproduced against the original commit (`5e3713c`) before I changed anything. Full details, evidence and severity are in [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md). The ones that would have hurt a client:
+26 findings, each reproduced against the original commit (`5e3713c`) before I changed anything, plus 7 more (V27–V33) from a second-pass review of my own fixes. Full details, evidence and severity are in [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md). The ones that would have hurt a client:
 
 1. **Any admin could read any company's dashboard** (V1). `/dashboard?org_id=2` from Northwind's admin returned Bluepeak's data. Worse, Ravi, an *employee* at Northwind, could switch to his Bluepeak admin login and read Northwind's leadership view. The repo's own test for this asserted the leak (`status_code == 200`).
 2. **Anyone could become anyone** (V2, V3). The JWT signing key was committed in `backend/.env`. I forged a token for Bluepeak's admin with no password and got their dashboard.
@@ -93,6 +93,7 @@ Every fix has tests that fail on the original code. The suite went from 8 tests 
 | `feat/frontend-ux` | Real dashboard (it was a JSON dump), transparent report, delete button, error handling | Manual walkthrough in the browser |
 | `chore/dev-experience` | Working Dockerfile, compose, GitHub Actions CI, split dev requirements, `.gitattributes` | CI steps run locally |
 | `chore/bump-vite` | Dev-server security patches | `npm audit` before/after |
+| `review/skills-second-pass` | Second-pass review of the fixes (V27–V32): AI-reply crash on non-text flags; production refuses mock AI scoring; tokens must carry `exp` and `sub`; small teams listed by name only so the dashboard can't show who took part or deleted; deleted text overwritten in the SQLite file; pilot AI scoring evaluation | `test_scoring.py`, `test_auth.py`, `test_min_group_size.py`, `test_right_to_delete.py`, `test_eval.py` (each new fix test fails on the code before the fix; `test_eval.py` checks the harness itself) |
 
 ### Making the AI trustworthy
 
@@ -124,9 +125,11 @@ Parser tests prove a bad reply can't corrupt the data. They don't prove a *valid
 
 - **The leaked key is still in git history.** The brief says keep history, and rotating the key is the real fix. **Any environment that ever used `pulse-7f3a9c2e1b-prod` must rotate its `SECRET_KEY`.**
 - **Login rate limiting, `httpOnly` cookie tokens, token revocation** (V20–V22). Real issues, but better solved at the gateway, and lower risk than everything above.
-- **Differencing over time** (V26). An admin who watches the dashboard just before and after one person submits or deletes can infer that person's score. Fixing it is a product decision (scheduled snapshots); see the questions below.
+- **Differencing over time** (V26). An admin who watches the dashboard just before and after one person submits or deletes can infer that person's score: with the seed data, Vikram's deletion gives away his average as 4.08 (real: 4.00). Fixing it is a product decision (scheduled snapshots); see the questions below.
+- **The injection screen's patterns** (V32). The evaluation shows they miss rewordings and exclude some genuine answers. I left them unchanged rather than tune them to my own test set; whether a suspicious answer is excluded or sent to a person is a product call.
+- **Refreshing the page signs you out** (V33). Login state lives only in React memory. Annoying, not a security issue.
 - **No migrations (Alembic) and SQLite.** Fine for a pilot. Schema changes currently mean re-seeding. Alembic comes before any production data.
-- **Vite 6 upgrade** for the remaining dev-server-only advisories (V25).
+- **A vite major upgrade** for the remaining dev-server-only advisories (V25). `npm audit` lists vite ≤ 6.4.3 as affected, so moving to vite 6 alone isn't enough.
 - **No frontend tests.** The UI was verified by hand; the logic it shows is covered by backend tests.
 - **Demo seed users share one password hash** (same salt), to keep seeding fast. Real users each get their own salt.
 - **The live LLM path** is tested with mocked transport only. I didn't have a model endpoint to run it against.

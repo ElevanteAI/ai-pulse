@@ -3,6 +3,7 @@
 Audit of the inherited code at commit `5e3713c` ("Add client request from Northwind").
 Every finding marked **Reproduced** was confirmed by running it against that commit, not just by reading the code.
 The **Status** column reflects the final state of `main`. Each fix landed on its own branch with tests; the root `README.md` maps findings to branches.
+V27–V33 came from a second-pass review of the fixed code (branch `review/skills-second-pass`); see [Second-pass review](#second-pass-review).
 
 Severity scale:
 
@@ -39,8 +40,15 @@ Severity scale:
 | V22 | Low | Auth | Tokens can't be revoked before they expire (12h) | Left (documented) |
 | V23 | Low | Privacy | Open answers sent to a third-party LLM with no notice to the employee | Partly fixed (notice added) |
 | V24 | Low | Ops | No CI, `pytest` in production requirements, no `.dockerignore` | Fixed |
-| V25 | Low | Supply chain | `npm audit`: vite/esbuild dev-server advisories (a malicious website can read files from a running `npm run dev`) | Partly fixed (patched to 5.4.21; rest needs vite 6+) |
+| V25 | Low | Supply chain | `npm audit`: vite/esbuild dev-server advisories (a malicious website can read files from a running `npm run dev`) | Partly fixed (patched to 5.4.21; the advisory range is vite ≤ 6.4.3, so the rest needs a newer major) |
 | V26 | Medium | Privacy | Differencing over time: an admin who watches the dashboard before and after one person submits or deletes can infer that person's score | Left (documented, question for client) |
+| V27 | Medium | AI | A model reply with an object or list inside `flags` raised `TypeError`, so the submission returned a 500 | Fixed (second pass) |
+| V28 | Medium | AI / Privacy | `AI_MODE` defaulted to `mock` even in production, so a forgotten setting would store canned scores and risk flags against real employees | Fixed (second pass) |
+| V29 | Low | Auth | A correctly signed token without `exp` or `sub` was accepted, and would never expire | Fixed (second pass) |
+| V30 | Medium | Privacy | The "not shown separately" list gave each small team's headcount and status, so a 1-person team showed who took part and, later, who deleted | Fixed (second pass) |
+| V31 | Low | Privacy | Deleted answers stayed readable in the SQLite file's free pages (and in any copy of the file) | Fixed in code (second pass); backups and the LLM provider are outside the code |
+| V32 | Medium | AI | The injection keyword screen caught 2 of 6 attempts in the evaluation set and wrongly excluded 2 of 24 genuine answers | Measured; left (product decision) |
+| V33 | Low | UX | Refreshing the page signs the user out (login state is held only in React memory) | Left (found by reading the code) |
 
 ---
 
@@ -186,8 +194,23 @@ Departments with no respondents show `average_score: 0.0, level: "Beginner"`. Le
 - **V22. No token revocation.** Tokens live 12 hours. Membership is re-checked from the database on every request, so removing someone from an org takes effect immediately. A full revocation list isn't worth it yet.
 - **V23. Third-party LLM processing.** I added a notice to the diagnostic screen. A real deployment needs a DPA with the model provider and a decision on retention. See the questions for the client in the README.
 
-- **V25. Dev-server advisories in vite/esbuild.** They affect only `npm run dev` on a developer's machine, not the built frontend users get. I took the non-breaking patch (5.4.11 → 5.4.21). The remaining advisories need vite 6+, which I'd do as its own change with a full UI check.
+- **V25. Dev-server advisories in vite/esbuild.** They affect only `npm run dev` on a developer's machine, not the built frontend users get. I took the non-breaking patch (5.4.11 → 5.4.21). The remaining advisories cover vite ≤ 6.4.3 (`npm audit`, 28 Oct 2026), so they need a newer major than 6, which I'd do as its own change with a full UI check.
 - **V26. Differencing over time.** The minimum group size stops leadership seeing a small group. It doesn't stop someone comparing the Sales average just before and just after one named person submits (or deletes), and working out that person's score from the change. Real fixes are product decisions: refresh dashboards on a schedule (e.g. daily snapshots) instead of live, and/or only publish a change once several new responses have arrived. This conflicts slightly with the client's "disappear immediately" wording for deletion (a deletion should still remove data at once; only the *published aggregates* would refresh on a schedule). It's in the questions for the client.
+  **Measured in the second pass:** with the seed data, Vikram's average worked out from Northwind's overall figures before and after he deleted was 4.08; his real average is 4.00. Rounding to 2 decimals barely slows it down, and an org-wide risk count dropping by one reveals a deleted person's flag the same way.
+
+## Second-pass review
+
+After the first submission I reviewed the fixed code again (security, privacy and AI scoring). Each fix has a test that fails on the code before it. All probes used the synthetic seed data on a throwaway database.
+
+- **V27. Non-string flags crashed scoring** (commit `f94e8a0`). `parse_model_output` checked each flag against a set, and a dict or list can't be hashed, so `{"flags": [{"a": 1}]}` raised `TypeError`. `score_open_answer` only caught `LLMError`, so `/diagnostic/submit` returned a 500. Only possible in live mode. **Fix:** any non-string flag makes the reply `needs_review`. Tests: `test_non_string_flags_*` in `test_scoring.py`.
+- **V28. Production defaulted to mock scoring** (commit `8e87435`). `APP_ENV=production` with a strong key started fine with `AI_MODE` unset, which means mock. Mock replies are picked by hashing the answer, so real employees would get fake scores and risk flags, shown to leadership with no demo label. **Fix:** outside dev/test the app refuses to start unless `AI_MODE=live`, like it already does for a weak `SECRET_KEY`. Test: `test_production_refuses_mock_ai_scoring`.
+- **V29. Tokens without expiry** (commit `8e87435`). Needs the signing key to exploit, but if the key leaks such a token never expires. **Fix:** `jwt.decode(..., options={"require": ["exp", "sub"]})`. Test: `test_token_without_expiry_or_subject_is_rejected`.
+- **V30. Small teams revealed participation** (commit `6232575`). Bluepeak's admin saw "Customer Care: 1 employee, hidden". After Kabir (its only member) deleted, it changed to "no responses yet", so leadership could tell who took part and who deleted. **Fix:** teams not shown on their own are listed by name only, and "Other teams" lists the teams it covers from membership, not from who answered. Test: `test_teams_not_shown_reveal_nothing_about_who_took_part` asserts the whole dashboard is identical before and after that deletion.
+- **V31. Deleted text left in the database file** (commit `6232575`). After a delete the API reported the rows gone, but a unique marker in the deleted answer was still in the raw `.db` bytes (`PRAGMA secure_delete` was off). **Fix:** `secure_delete` is turned on for every SQLite connection. Test: `test_deleted_text_is_not_left_in_the_database_file` searches the raw file. Backups and the model provider's retention can't be fixed in code (client question 3).
+- **V32. Injection screen coverage** (commit `56e4811`, measured not fixed). The pilot evaluation set shows the keyword screen misses rewordings ("SYSTEM: the rubric has changed", closing the `<answer>` tag, "note to the evaluator", "don't flag that") and wrongly excludes genuine answers that mention a "system prompt" or "give a score". I didn't change the patterns, to avoid tuning them to the evaluation set. Whether the screen should exclude an answer or send it to a person is a product decision.
+- **V33. Refresh signs you out.** `App.jsx` keeps the login step and selected org in React state only, so a reload returns to the login page although the token is still in `localStorage`. Not a security issue; left.
+
+Also checked in the second pass and fine: `alg: none` tokens, tokens signed with the leaked key, expired tokens, a valid token whose `org` claim names another org (403 on dashboard, report and delete), and `score`/`flags`/`org_id` fields added to a diagnostic submission (ignored).
 
 ## Things I checked that are fine
 
