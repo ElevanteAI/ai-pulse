@@ -5,6 +5,7 @@ from ..db import get_db
 from .. import models
 from ..auth import current_membership
 from ..utils import maturity_level
+from ..services.playbooks import employee_tips
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -29,5 +30,6 @@ def my_report(m: models.Membership = Depends(current_membership), db: Session = 
         "average_score": round(avg, 2) if avg is not None else None,
         "level": maturity_level(avg),
         "risks": flags,
+        "remediation": employee_tips(flags),
         "next_steps": NEXT_STEPS.get(m.job_role, NEXT_STEPS["manager"]),
     }

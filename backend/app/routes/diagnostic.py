@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from .. import models
 from ..auth import current_membership
+from ..audit import record
 from ..services.questions import questions_for, load_questions
 from ..services.scoring import score_open_answer
 
@@ -35,6 +36,12 @@ def get_questions(m: models.Membership = Depends(current_membership)):
 @router.post("/submit")
 def submit(body: SubmitIn, m: models.Membership = Depends(current_membership), db: Session = Depends(get_db)):
     bank = {q["id"]: q for q in load_questions()}
+    # Validate everything first so a bad answer doesn't wipe the previous submission
+    for a in body.answers:
+        if a.question_id not in bank:
+            raise HTTPException(400, f"Unknown question {a.question_id}")
+    # A new submission replaces the previous one
+    db.query(models.Response).filter_by(membership_id=m.id).delete()
     for a in body.answers:
         q = bank.get(a.question_id)
         if not q:
@@ -53,3 +60,12 @@ def submit(body: SubmitIn, m: models.Membership = Depends(current_membership), d
         db.add(resp)
     db.commit()
     return {"saved": len(body.answers)}
+
+
+@router.delete("/me")
+def delete_my_responses(m: models.Membership = Depends(current_membership), db: Session = Depends(get_db)):
+    """Right to delete: remove all of the caller's answers, which also clears their report and dashboard contribution."""
+    deleted = db.query(models.Response).filter_by(membership_id=m.id).delete()
+    record(db, m, "responses_deleted", f"{deleted} responses")
+    db.commit()
+    return {"deleted": deleted}

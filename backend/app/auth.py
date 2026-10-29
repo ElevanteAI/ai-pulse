@@ -1,21 +1,33 @@
 import hashlib
+import hmac
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
-from .config import SECRET_KEY, TOKEN_HOURS
+from .config import SECRET_KEY, TOKEN_HOURS, PASSWORD_ITERATIONS
 from .db import get_db
 from . import models
 
 
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Salted PBKDF2-SHA256, stored as pbkdf2$iterations$salt$hash."""
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), PASSWORD_ITERATIONS)
+    return f"pbkdf2${PASSWORD_ITERATIONS}${salt}${digest.hex()}"
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return hash_password(password) == hashed
+    try:
+        scheme, iterations, salt, expected = hashed.split("$")
+        if scheme != "pbkdf2":
+            return False
+        digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), int(iterations))
+    except ValueError:
+        return False
+    return hmac.compare_digest(digest.hex(), expected)
 
 
 def make_token(user_id: int, org_id: int | None = None) -> str:

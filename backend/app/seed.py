@@ -90,4 +90,16 @@ def run():
 
 
 if __name__ == "__main__":
+    import sys
+
+    from .config import DATABASE_URL
+
+    # run() drops every table, so refuse to do that to a database that already has users
+    # unless the caller asks for it explicitly.
+    Base.metadata.create_all(bind=engine)
+    probe = SessionLocal()
+    has_data = probe.query(models.User).first() is not None
+    probe.close()
+    if has_data and "--reset" not in sys.argv:
+        sys.exit(f"{DATABASE_URL} already contains users. Re-run with --reset to wipe and reseed it.")
     run()

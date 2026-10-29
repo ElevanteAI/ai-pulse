@@ -1,6 +1,46 @@
 body { font-family: system-ui, sans-serif; margin: 0; background: #f6f7fb; color: #1d2433; }
-.wrap { max-width: 760px; margin: 40px auto; padding: 0 16px; }
+.wrap { max-width: 860px; margin: 24px auto; padding: 0 16px; }
 .card { background: #fff; border-radius: 10px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 16px; }
-button { background: #3f2a71; color: #fff; border: 0; padding: 10px 16px; border-radius: 6px; cursor: pointer; }
-input, textarea, select { width: 100%; padding: 8px; margin: 6px 0 14px; box-sizing: border-box; }
-.error { color: #b42318; }
+button { background: #3f2a71; color: #fff; border: 0; padding: 10px 16px; border-radius: 6px; cursor: pointer; font: inherit; }
+button:disabled { opacity: .6; cursor: default; }
+button.secondary { background: #fff; color: #3f2a71; border: 1px solid #c9c2dd; }
+button.danger { background: #b42318; }
+input, textarea, select { width: 100%; padding: 8px; margin: 6px 0 14px; box-sizing: border-box; font: inherit; }
+.error { color: #b42318; margin: 0 0 12px; }
+.muted { color: #667085; font-size: .9em; }
+.field { margin-bottom: 8px; }
+.field .error { margin-top: -8px; }
+
+/* nav */
+.nav { display: flex; align-items: center; gap: 24px; padding: 12px 24px; background: #fff; border-bottom: 1px solid #e4e7ec; flex-wrap: wrap; }
+.nav-info { display: flex; gap: 12px; align-items: center; flex: 1; color: #475467; }
+.nav-actions { display: flex; gap: 8px; }
+.nav button { padding: 6px 12px; }
+
+/* badges */
+.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .85em; font-weight: 600; background: #eef0f4; color: #475467; }
+.badge-beginner { background: #fee4e2; color: #912018; }
+.badge-exploring { background: #fef0c7; color: #93370d; }
+.badge-practitioner { background: #d1e9ff; color: #175cd3; }
+.badge-leader { background: #d3f8df; color: #05603a; }
+.badge-neutral { background: #eef0f4; color: #475467; }
+.badge-role { text-transform: capitalize; background: #ebe7f5; color: #3f2a71; }
+.badge-private { background: #ebe7f5; color: #3f2a71; font-size: .75em; }
+.badge-risk { background: #fee4e2; color: #912018; text-transform: capitalize; }
+
+/* dashboard */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.stat { margin-bottom: 0; }
+.big { font-size: 2em; font-weight: 700; }
+.stats .card { margin-bottom: 16px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eef0f4; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.risk-button { background: #fee4e2; color: #912018; text-transform: capitalize; }
+.risk-button .count { background: #912018; color: #fff; border-radius: 999px; padding: 0 8px; margin-left: 6px; }
+.playbook { border-left: 4px solid #3f2a71; }
+
+/* report */
+.score-row { display: flex; align-items: center; gap: 24px; }
+.actions { margin-top: 16px; }
+.danger-zone { border: 1px solid #fda29b; }

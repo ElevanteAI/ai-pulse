@@ -3,14 +3,16 @@ import pytest
 
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["AI_MODE"] = "mock"
+os.environ["PASSWORD_ITERATIONS"] = "1000"  # keep per-test seeding fast
 
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
-from app import seed  # noqa: E402
+from app import seed, ratelimit  # noqa: E402
 
 
 @pytest.fixture()
 def client():
+    ratelimit.reset_all()
     seed.run()
     return TestClient(app)
 

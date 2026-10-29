@@ -1,15 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .config import CORS_ORIGINS
 from .db import Base, engine
-from .routes import auth_routes, diagnostic, reports, dashboard
+from .routes import auth_routes, diagnostic, reports, dashboard, playbooks
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AI Pulse API")
+allow_all = "*" in CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"] if allow_all else CORS_ORIGINS,
+    allow_credentials=not allow_all,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -18,6 +21,7 @@ app.include_router(auth_routes.router)
 app.include_router(diagnostic.router)
 app.include_router(reports.router)
 app.include_router(dashboard.router)
+app.include_router(playbooks.router)
 
 
 @app.get("/health")
