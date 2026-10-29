@@ -5,6 +5,7 @@ All passwords are: pulse123
 from .db import Base, engine, SessionLocal
 from . import models
 from .auth import hash_password
+from .config import DEMO_PASSWORD
 
 PEOPLE_NORTHWIND = [
     # name, email, department, role, job_role, seniority
@@ -27,8 +28,23 @@ PEOPLE_BLUEPEAK = [
 ]
 
 
-def run():
-    Base.metadata.drop_all(bind=engine)
+def run_if_empty():
+    """Seed demo data only when there are no users yet. Safe to call on every start."""
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        has_users = db.query(models.User).first() is not None
+    finally:
+        db.close()
+    if has_users:
+        print("Database already has data, skipping seed.")
+    else:
+        run(drop=False)
+
+
+def run(drop=True):
+    if drop:  # the default wipes everything: for local development and tests only
+        Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 
@@ -53,7 +69,7 @@ def run():
         for name, email, dept, role, job_role, seniority in people:
             u = users.get(email)
             if not u:
-                u = models.User(name=name, email=email, password_hash=hash_password("pulse123"))
+                u = models.User(name=name, email=email, password_hash=hash_password(DEMO_PASSWORD))
                 db.add(u)
                 db.flush()
                 users[email] = u
@@ -86,7 +102,7 @@ def run():
 
     db.commit()
     db.close()
-    print("Seeded. Log in with any seeded email and password 'pulse123'.")
+    print("Seeded demo data. Log in with any seeded email and the demo password.")
 
 
 if __name__ == "__main__":

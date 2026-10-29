@@ -35,6 +35,11 @@ def get_questions(m: models.Membership = Depends(current_membership)):
 @router.post("/submit")
 def submit(body: SubmitIn, m: models.Membership = Depends(current_membership), db: Session = Depends(get_db)):
     bank = {q["id"]: q for q in load_questions()}
+    # Resubmitting replaces earlier answers to the same questions instead of duplicating them
+    db.query(models.Response).filter(
+        models.Response.membership_id == m.id,
+        models.Response.question_id.in_([a.question_id for a in body.answers]),
+    ).delete(synchronize_session=False)
     for a in body.answers:
         q = bank.get(a.question_id)
         if not q:

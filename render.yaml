@@ -1,0 +1,35 @@
+# Render Blueprint: creates the API (Docker) and the frontend (static site) from this repo.
+# Dashboard: New > Blueprint > pick this repo and branch.
+services:
+  - type: web
+    name: ai-pulse-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true          # Render creates a long random value
+      - key: DATABASE_URL
+        sync: false                  # paste the Supabase connection string in the Render dashboard
+      - key: ALLOWED_ORIGINS
+        sync: false                  # the frontend URL, e.g. https://ai-pulse-web.onrender.com
+      - key: AI_MODE
+        value: mock
+      - key: AUTO_SEED
+        value: "true"                # fills an EMPTY database with demo data on first start
+      - key: DEMO_PASSWORD
+        value: pulse123              # password for the demo accounts
+
+  - type: web
+    name: ai-pulse-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false                  # the API URL, e.g. https://ai-pulse-api.onrender.com

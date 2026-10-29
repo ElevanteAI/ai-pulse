@@ -6,7 +6,7 @@ from .. import models
 from ..auth import current_membership
 from ..utils import maturity_level
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+router = APIRouter(prefix="/reports", tags=["reports"]) 
 
 NEXT_STEPS = {
     "support": ["Use AI to draft first replies, then edit", "Summarise long ticket threads before escalating", "Never paste customer details into public chatbots"],
@@ -30,4 +30,13 @@ def my_report(m: models.Membership = Depends(current_membership), db: Session = 
         "level": maturity_level(avg),
         "risks": flags,
         "next_steps": NEXT_STEPS.get(m.job_role, NEXT_STEPS["manager"]),
-    }
+    } 
+
+
+@router.delete("/me")
+def delete_my_data(m: models.Membership = Depends(current_membership), db: Session = Depends(get_db)):
+    """Right to delete: remove every answer (and so the report) of the caller in the selected org."""
+    # The membership comes from the verified token, never from the request, so users can only delete their own data
+    deleted = db.query(models.Response).filter_by(membership_id=m.id).delete()
+    db.commit()
+    return {"deleted": deleted}

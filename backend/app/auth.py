@@ -5,17 +5,24 @@ import jwt
 from fastapi import Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
-from .config import SECRET_KEY, TOKEN_HOURS
+from .config import SECRET_KEY, TOKEN_HOURS 
 from .db import get_db
 from . import models
+import secrets
 
-
+ 
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    salt = secrets.token_hex(16)
+    key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
+    return f"{salt}${key.hex()}"
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return hash_password(password) == hashed
+    if "$" not in hashed:
+        return False
+    salt,original_key = hashed.split("$", 1)
+    new_key=hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000).hex()
+    return secrets.compare_digest(original_key, new_key)
 
 
 def make_token(user_id: int, org_id: int | None = None) -> str:
