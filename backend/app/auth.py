@@ -1,4 +1,4 @@
-import hashlib
+import bcrypt
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -11,11 +11,14 @@ from . import models
 
 
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return hash_password(password) == hashed
+    try:
+        return bcrypt.checkpw(password.encode(), hashed.encode())
+    except ValueError:
+        return False
 
 
 def make_token(user_id: int, org_id: int | None = None) -> str:
@@ -31,7 +34,12 @@ def _decode(authorization: str | None):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Missing token")
     try:
-        return jwt.decode(authorization[7:], SECRET_KEY, algorithms=["HS256"])
+        data = jwt.decode(authorization[7:], SECRET_KEY, algorithms=["HS256"], options={"require": ["sub", "exp"]})
+        if not isinstance(data["sub"], str) or not data["sub"].isdigit() or int(data["sub"]) < 1:
+            raise jwt.InvalidTokenError("Invalid user ID")
+        if data.get("org") is not None and (type(data["org"]) is not int or data["org"] < 1):
+            raise jwt.InvalidTokenError("Invalid organization ID")
+        return data
     except jwt.PyJWTError:
         raise HTTPException(401, "Invalid token")
 
@@ -45,7 +53,6 @@ def current_user(authorization: str | None = Header(None), db: Session = Depends
 
 
 def current_membership(authorization: str | None = Header(None), db: Session = Depends(get_db)) -> models.Membership:
-    """The membership for the organization selected after login."""
     data = _decode(authorization)
     if not data.get("org"):
         raise HTTPException(400, "Select an organization first")

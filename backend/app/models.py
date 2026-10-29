@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, Integer, ForeignKey, DateTime, Text, Float, JSON
+from sqlalchemy import String, Integer, ForeignKey, DateTime, Text, Float, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
@@ -45,6 +45,7 @@ class Membership(Base):
 
 class Response(Base):
     __tablename__ = "responses"
+    __table_args__ = (UniqueConstraint("membership_id", "question_id", name="unique_membership_question"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     membership_id: Mapped[int] = mapped_column(ForeignKey("memberships.id"))
     question_id: Mapped[str] = mapped_column(String(40))

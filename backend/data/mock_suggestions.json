@@ -1,0 +1,27 @@
+{
+  "support": [
+    {"title": "Draft a safer reply", "action": "Use a fictional ticket to practise drafting a reply, then check its facts and tone."},
+    {"title": "Summarise before escalating", "action": "Summarise a redacted ticket thread and compare it with the source before escalating."},
+    {"title": "Build a review habit", "action": "Check every AI draft against your team's approved guidance before sending it."}
+  ],
+  "engineering": [
+    {"title": "Start with a small test", "action": "Ask an approved assistant for a unit test using synthetic data and run it locally."},
+    {"title": "Review every change", "action": "Check an AI suggestion line by line and verify it with a focused test."},
+    {"title": "Compare two approaches", "action": "Ask for two solutions to a small coding problem and explain their tradeoffs yourself."}
+  ],
+  "sales": [
+    {"title": "Practise an outreach draft", "action": "Draft an email for a fictional prospect and edit its claims before using the structure."},
+    {"title": "Check your summaries", "action": "Compare an AI summary of synthetic call notes against the original notes."},
+    {"title": "Make a reusable checklist", "action": "Write a checklist for checking tone, accuracy and private details in AI drafts."}
+  ],
+  "manager": [
+    {"title": "Choose one workflow", "action": "Pick one low-risk task and measure time saved after reviewing its AI output."},
+    {"title": "Review approved guidance", "action": "Read your team's AI policy and clarify any uncertain data-sharing rules."},
+    {"title": "Plan a small experiment", "action": "Try an approved tool with synthetic data and record one benefit and one limitation."}
+  ],
+  "data_risk": [
+    {"title": "Use synthetic examples", "action": "Practise your next AI task with fictional details instead of real customer information."},
+    {"title": "Check the policy", "action": "Confirm which tools and data types your organization permits before your next prompt."},
+    {"title": "Verify before using", "action": "Compare every important AI claim against an approved source before acting on it."}
+  ]
+}

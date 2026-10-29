@@ -1,8 +1,10 @@
 import os
 import pytest
+import bcrypt
 
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["AI_MODE"] = "mock"
+os.environ["DEV_MODE"] = "true"
 
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
@@ -10,7 +12,8 @@ from app import seed  # noqa: E402
 
 
 @pytest.fixture()
-def client():
+def client(monkeypatch):
+    monkeypatch.setattr(seed, "hash_password", lambda password: bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=4)).decode())
     seed.run()
     return TestClient(app)
 
